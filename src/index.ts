@@ -1,28 +1,39 @@
 import Ajv from 'ajv';
+import express, { Request, Response, NextFunction } from 'express';
 import { createGenerator } from 'ts-json-schema-generator';
 import path from 'path';
+import { Person } from "./types";
 
 const repoRoot = process.cwd();
-
+const configType = "Person";
 const config = {
   path: path.join(repoRoot, "src", "types.ts"),
   tsconfig: path.join(repoRoot, "tsconfig.json"),
-  type: "Person",
+  type: configType,
 };
+const schema = createGenerator(config).createSchema(configType);
+const app = express();
+app.use(express.json());
 
-const schema = createGenerator(config).createSchema("Person")
-
-const validate = (data: any) => {
+// Middleware to validate incoming payload against JSON Schema
+const validatePayload = (req: Request, res: Response, next: NextFunction) => {
   const ajv = new Ajv();
   const validateFn = ajv.compile(schema);
-  return validateFn(data);
+
+  if (!validateFn(req.body)) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+
+  next();
 };
 
-const person = {
-  firstName: 'Alice',
-  lastName: 'Chapman',
-  age: 30,
-  socials: ['github', 'twitter']
-};
+// Endpoint that accepts User payloads
+app.post('/users', validatePayload, (req: Request, res: Response) => {
+  const newUser = req.body as Person;
+  // Do something with newUser
+  res.json(newUser);
+});
 
-console.log(validate(person));
+app.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
